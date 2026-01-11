@@ -1,0 +1,33 @@
+# Build output
+target/
+
+# Maven local repo
+.mvn/
+**/.m2/
+
+# IDE files
+.idea/
+.VS Code/
+*.iml
+*.ipr
+*.iws
+
+# Git
+.git/
+.gitignore
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Env / secrets
+.env
+*.key
+*.pem
+
+# Docker files themselves (optional)
+Dockerfile
+docker-compose.yml
