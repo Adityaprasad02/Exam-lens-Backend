@@ -26,4 +26,19 @@ public class configuration
         executor.initialize();
         return executor;
     }
+
+
+    @Bean
+    public WebMvcConfigurer webMvcConfigurer(){
+         return new WebMvcConfigurer() {
+
+             @Override
+             public void addCorsMappings(CorsRegistry registry){
+                   registry.addMapping("/**")
+                           .allowedOrigins(frontend_url)
+                           .allowedHeaders("*")
+                           .allowedMethods("*") ;
+             }
+         } ;
+    }
 }
