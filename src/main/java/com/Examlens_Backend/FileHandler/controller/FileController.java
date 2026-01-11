@@ -43,4 +43,9 @@ public class FileController {
         return ResponseEntity.status(HttpStatus.CREATED).body(details);
     }
 
+    @GetMapping("/")
+    public String HealthCheck(){
+        return "Running at port 8080" ; 
+    }
+
 }
