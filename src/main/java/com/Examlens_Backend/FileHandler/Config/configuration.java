@@ -40,7 +40,7 @@ public class configuration
              @Override
              public void addCorsMappings(CorsRegistry registry){
                    registry.addMapping("/**")
-                           .allowedOriginPatterns(frontend_url)
+                           .allowedOrigins(frontend_url)
                            .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                            .allowedHeaders("*")
                            .allowCredentials(true);
