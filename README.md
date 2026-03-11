@@ -81,24 +81,31 @@ text## Workflow
 - Database persistence (analysis history)
 
 ## Project Structure
+
+```text
 FileHandler/
-├── src/main/java/com/example/filehandler/
-│   ├── controller/
-│   │   └── FileUploadController.java
-│   ├── service/
-│   │   ├── FileProcessingService.java
-│   │   ├── AIAnalysisService.java
-│   │   └── ReportGenerationService.java
-│   ├── model/
-│   │   ├── dto/
-│   │   └── entity/
-│   ├── config/
-│   │   └── WebClientConfig.java
-│   └── FileHandlerApplication.java
-├── src/main/resources/
-│   └── application.yml (or .properties)
-└── pom.xml
-text## Screenshots
+├── pom.xml
+├── src/
+│   ├── main/
+│   │   ├── java/
+│   │   │   └── com/example/filehandler/
+│   │   │       ├── FileHandlerApplication.java
+│   │   │       ├── config/
+│   │   │       │   └── WebClientConfig.java
+│   │   │       ├── controller/
+│   │   │       │   └── FileUploadController.java
+│   │   │       ├── model/
+│   │   │       │   ├── dto/
+│   │   │       │   └── entity/
+│   │   │       └── service/
+│   │   │           ├── AIAnalysisService.java
+│   │   │           ├── FileProcessingService.java
+│   │   │           └── ReportGenerationService.java
+│   │   └── resources/
+│   │       └── application.yml (or application.properties)
+│   └── test/                  # (optional – add when you have tests)
+└── (other files: .gitignore, README.md, etc.)
+
 
 ## Screenshots
 
