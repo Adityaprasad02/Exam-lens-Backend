@@ -127,8 +127,7 @@ FileHandler
 
 
 📸 Screenshots
-## Landing Page
-![Landing Page](images\Screenshot 2026-03-12 020239.png)
+<img src="images\Screenshot 2026-03-12 020239.png" width="700">
 
-## Upload Page
-![Upload Page](images\Screenshot 2026-03-12 020259.png)
+
+<img src="images\Screenshot 2026-03-12 020259.png" width="700">
