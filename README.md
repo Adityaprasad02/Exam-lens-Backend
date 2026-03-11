@@ -82,7 +82,7 @@ text## Workflow
 
 ## Project Structure
 
-```text
+
 FileHandler/
 ├── pom.xml
 ├── src/
