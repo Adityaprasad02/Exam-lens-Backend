@@ -83,6 +83,21 @@ text## Workflow
 ## Project Structure
 
 
+
+This version:
+- Uses shorter indentation → less horizontal scrolling
+- Groups logically (config, controller, service, model)
+- Keeps it compact yet clear
+
+### Option 2: Collapsible (great if README is long)
+
+```markdown
+## Project Structure
+
+<details>
+<summary>Click to expand project directory tree</summary>
+
+```text
 FileHandler/
 ├── pom.xml
 ├── src/
@@ -95,16 +110,22 @@ FileHandler/
 │   │   │       ├── controller/
 │   │   │       │   └── FileUploadController.java
 │   │   │       ├── model/
-│   │   │       │   ├── dto/
-│   │   │       │   └── entity/
+│   │   │       │   ├── dto/          
+│   │   │       │   └── entity/        
 │   │   │       └── service/
 │   │   │           ├── AIAnalysisService.java
 │   │   │           ├── FileProcessingService.java
 │   │   │           └── ReportGenerationService.java
 │   │   └── resources/
-│   │       └── application.yml (or application.properties)
-│   └── test/                  # (optional – add when you have tests)
-└── (other files: .gitignore, README.md, etc.)
+│   │       ├── application.yml        # (or .properties)
+│   │       └── (static/, templates/ if using server-side rendering)
+│   └── test/
+│       └── java/com/example/filehandler/
+│           └── (unit/integration tests go here)
+└── .gitignore
+    README.md
+    (etc.)
+```
 
 
 ## Screenshots
