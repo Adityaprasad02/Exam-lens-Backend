@@ -1,133 +1,116 @@
-# 🚀 FileHandler — AI Powered Exam Analysis Platform
+# FileHandler - AI-Powered Exam Paper Analysis Platform
 
-## 📌 Overview
+FileHandler is a full-stack application that enables automated analysis of exam question papers. Users upload PDF files containing exam papers, and the system extracts content, applies AI-driven question analysis, and produces structured insights including topic distribution, marks allocation, and importance ranking.
 
-**FileHandler** is a full-stack **AI-powered exam paper analysis platform** built using **Java Spring Boot**.  
-The system automatically extracts and analyzes question papers from uploaded PDF files and generates **topic-wise insights, marks distribution, and structured reports**.
+Built with **Spring Boot**, it demonstrates modern backend development practices: RESTful APIs, asynchronous processing, external AI integration, PDF handling, and report generation.
 
-This project demonstrates **backend engineering, AI integration, asynchronous processing, and data visualization**, making it a strong portfolio project for internships or backend roles.
+This project serves as a strong portfolio piece for backend engineering roles, showcasing AI integration, non-blocking I/O, and clean architecture.
 
----
+## Features
 
-## ⚡ Features
+- **PDF Upload & Text Extraction**  
+  Secure upload of exam papers in PDF format with reliable text extraction.
 
-### 📄 PDF Upload
-- Upload exam papers in **PDF format**
-- Automatic text extraction from question papers
+- **AI-Powered Question Analysis**  
+  Leverages large language models (via OpenRouter or Hugging Face APIs) to identify:  
+  - Main topics and subtopics  
+  - Marks distribution per question/topic  
+  - Question difficulty/importance indicators
 
-### 🤖 AI-Powered Analysis
-- Uses **LLM APIs** to analyze questions
-- Extracts:
-  - Topics
-  - Subtopics
-  - Marks distribution
-  - Question importance
+- **Data Visualization**  
+  Interactive charts displaying:  
+  - Topic-wise marks distribution  
+  - Subtopic importance breakdown
 
-### 📊 Graphical Insights
-- Topic-wise marks distribution
-- Important subtopics visualization
-- Interactive charts for better understanding
+- **Downloadable Analysis Report**  
+  Structured PDF report containing summary, detailed analysis, and visualizations — ready for download and sharing.
 
-### 📑 Downloadable PDF Report
-- Generates a structured **exam analysis report**
-- Easy to download and share
+- **High-Performance Backend**  
+  - Non-blocking HTTP client (WebClient)  
+  - Asynchronous processing with `CompletableFuture`  
+  - Clean REST API design suitable for React, Angular, or mobile frontends
 
-### ⚡ High Performance Backend
-- Built with **Spring Boot**
-- **Async processing** using `CompletableFuture`
-- Non-blocking API calls with **WebClient**
+## System Architecture
+User → Frontend → REST API (Spring Boot)
+↓
+PDF Upload & Storage
+↓
+Text Extraction (PDFBox)
+↓
+AI Analysis (LLM via WebClient)
+↓
+Structured Data Processing & Aggregation
+↓
+Chart Data Preparation + PDF Report Generation
+↓
+Response to Frontend
+text## Workflow
 
-### 🔌 Frontend Ready APIs
-- Clean **REST APIs**
-- Easy integration with **React / Angular / Mobile apps**
+1. User uploads an exam paper (PDF) via the frontend  
+2. Backend receives and stores the file temporarily  
+3. Text is extracted using Apache PDFBox  
+4. Extracted content is sent to an LLM API for structured analysis  
+5. Backend processes AI output into domain models  
+6. Generates chart-ready data and a formatted PDF report  
+7. Returns analysis results and download link to the client
 
----
-
-## 🧠 System Architecture
-User Uploads PDF
-|
-v
-Spring Boot Backend
-|
-v
-PDF Text Extraction
-|
-v
-AI Model (LLM API)
-|
-v
-Structured Data Processing
-|
-v
-Charts + PDF Report Generation
-
-
----
-
-## 🔄 Workflow
-
-1. User uploads an **exam paper PDF**
-2. Backend extracts **text content**
-3. AI model analyzes **questions and topics**
-4. Backend generates:
-   - Topic analysis
-   - Charts
-   - PDF report
-5. Results are returned to the frontend
-
----
-
-## 🛠 Tech Stack
+## Tech Stack
 
 ### Backend
-- Java
-- Spring Boot
-- Spring WebFlux (`WebClient`)
-- CompletableFuture
-- Jackson JSON Parser
-
-### Frontend (Recommended)
-- React
-- Vite
-- Axios
-- Chart.js / Recharts
+- Java 17+  
+- Spring Boot 3.x  
+- Spring WebFlux (WebClient for non-blocking calls)  
+- CompletableFuture (async orchestration)  
+- Jackson (JSON processing)  
+- Apache PDFBox (PDF text extraction)  
 
 ### AI Integration
-- OpenRouter API
-- HuggingFace models
+- OpenRouter API / Hugging Face Inference API  
 
-### PDF Processing
-- Apache PDFBox
-- Optional Python OCR service
+### Reporting & Visualization (API-ready)
+- Chart data in JSON format (compatible with Chart.js, Recharts, etc.)  
+- PDF generation library (e.g. iText, OpenPDF, or Flying Saucer)
 
----
+### Recommended Frontend
+- React + Vite  
+- Axios / TanStack Query  
+- Chart.js or Recharts  
 
-## 📂 Project Structure
+### Optional Enhancements
+- Python-based OCR service (for scanned/handwritten papers)  
+- Database persistence (analysis history)
+
+## Project Structure
+FileHandler/
+├── src/main/java/com/example/filehandler/
+│   ├── controller/
+│   │   └── FileUploadController.java
+│   ├── service/
+│   │   ├── FileProcessingService.java
+│   │   ├── AIAnalysisService.java
+│   │   └── ReportGenerationService.java
+│   ├── model/
+│   │   ├── dto/
+│   │   └── entity/
+│   ├── config/
+│   │   └── WebClientConfig.java
+│   └── FileHandlerApplication.java
+├── src/main/resources/
+│   └── application.yml (or .properties)
+└── pom.xml
+text## Screenshots
+
+### Topic-wise Marks Distribution Chart
+![Topic-wise Marks Distribution](images/Screenshot_2026-03-12_020239.png)
+
+### AI-Generated Summary & Marks Breakdown
+![AI Analysis Summary](images/Screenshot_2026-03-12_020259.png)
+
+### Interactive Chart Detail (Zoom)
+![Chart Zoom View](images/Screenshot_2026-03-12_020319.png)
+
+### Generated Downloadable PDF Report
+![PDF Report Example](images/Screenshot_2026-03-12_020355.png)
 
 
-FileHandler
-│
-├── controller
-│ └── FileUploadController
-│
-├── service
-│ ├── FileProcessingService
-│ ├── AIAnalysisService
-│ └── ReportGenerationService
-│
-├── model
-│ ├── ResponseModel
-│ └── TopicDetails
-│
-├── config
-│ └── WebClientConfig
-│
-└── resources
-└── application.properties
 
-
-📸 Screenshots
-<img src="images\Screenshot 2026-03-12 020239.png" width="700">
-
-
-<img src="images\Screenshot 2026-03-12 020259.png" width="700">
