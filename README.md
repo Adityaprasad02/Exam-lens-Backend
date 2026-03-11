@@ -100,17 +100,23 @@ FileHandler/
 └── pom.xml
 text## Screenshots
 
+
+## Screenshots
+
 ### Topic-wise Marks Distribution Chart
-![Topic-wise Marks Distribution](images/Screenshot_2026-03-12_020239.png)
+![Topic-wise Marks Distribution](images\Screenshot 2026-03-12 020239.png)
 
 ### AI-Generated Summary & Marks Breakdown
-![AI Analysis Summary](images/Screenshot_2026-03-12_020259.png)
+![AI Analysis Summary](images\Screenshot 2026-03-12 020259.png)
 
 ### Interactive Chart Detail (Zoom)
-![Chart Zoom View](images/Screenshot_2026-03-12_020319.png)
+![Chart Zoom View](images\Screenshot 2026-03-12 020319.png)
 
 ### Generated Downloadable PDF Report
-![PDF Report Example](images/Screenshot_2026-03-12_020355.png)
+![PDF Report Example](images\Screenshot 2026-03-12 020355.png)
+
+## Getting Started
+
 
 
 
