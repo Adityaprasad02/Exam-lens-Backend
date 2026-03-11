@@ -4,24 +4,27 @@ import com.Examlens_Backend.FileHandler.Models.ResponseModel;
 import com.Examlens_Backend.FileHandler.Models.TopicDetails;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+
 import org.springframework.web.reactive.function.client.WebClient;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
+
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 @Service
 public class AIConnection {
+
     private static final Logger log = LoggerFactory.getLogger(AIConnection.class);
 
     private final WebClient webClient;
@@ -35,182 +38,164 @@ public class AIConnection {
             ObjectMapper objectMapper,
             @Value("${model}") String model
     ) {
+
         this.objectMapper = objectMapper;
         this.model = model;
-
-        log.info("Initializing AI Connection with URL: {}", aiUrl);
 
         this.webClient = builder
                 .baseUrl(aiUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
                 .defaultHeader("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                 .build();
+
+        log.info("AIConnection initialized with base URL: {}", aiUrl);
     }
 
     public Mono<List<ResponseModel>> process(String paperText, List<TopicDetails> syllabus) {
-        log.debug("Processing paper with {} topics", syllabus.size());
+    String prompt = buildPrompt(paperText, syllabus);
 
-        String prompt = buildPrompt(paperText, syllabus);
+   Map<String, Object> requestBody = Map.of(
+    "model", model,
+    "messages", List.of(
+        Map.of("role", "system",
+               "content", "You are a JSON API. Return ONLY a raw JSON object with a 'results' key containing an array. No markdown, no explanation."),
+        Map.of("role", "user", "content", prompt)
+    ),
+    "temperature", 0,
+    "max_tokens", 3000,
+    "response_format", Map.of("type", "json_object") // ✅ keep this, but wrap array
+);
 
-        Map<String, Object> body = Map.of(
-                "model", model,
-                "messages", List.of(
-                        Map.of("role", "system", "content",
-                                "You are an exam analysis AI. You MUST respond with ONLY valid JSON array. " +
-                                        "No markdown, no explanations, no code blocks. Just the JSON array."),
-                        Map.of("role", "user", "content", prompt)
-                ),
-                "temperature", 0.3,  // Lower temperature for more consistent output
-                "max_tokens", 2000
-        );
-
-        // Log the request being sent
-        log.info("=== AI REQUEST ===");
-        log.info("URL: {}/chat/completions", webClient.mutate().build().toString());
-        log.info("Model: {}", model);
-        log.info("Prompt length: {} characters", prompt.length());
-
-        return webClient.post()
-                .uri("/chat/completions")
-                .bodyValue(body)
-                .retrieve()
-                .onStatus(HttpStatusCode::isError, res ->
-                        res.bodyToMono(String.class)
-                                .flatMap(err -> {
-                                    log.error("AI API Error: {}", err);
-                                    return Mono.error(new RuntimeException("AI API Error: " + err));
-                                }))
-                .bodyToMono(String.class)
-                .doOnNext(rawResponse -> {
-                    // Log the complete raw response from AI
-                    log.info("=== RAW AI RESPONSE ===");
-                    log.info("{}", rawResponse);
-                    log.info("=== END RAW RESPONSE ===");
+    return webClient.post()
+        .uri("/chat/completions")
+        .bodyValue(requestBody)
+        .retrieve()
+        .onStatus(HttpStatusCode::isError, res ->
+            res.bodyToMono(String.class)
+                .flatMap(err -> {
+                    log.error("AI API error: {}", err);
+                    return Mono.error(new RuntimeException(err));
                 })
-                .timeout(Duration.ofSeconds(30))  // 30 second timeout
-                .retryWhen(Retry.fixedDelay(2, Duration.ofSeconds(2))  // Retry 2 times
-                        .filter(throwable -> !(throwable instanceof WebClientResponseException.BadRequest)))
-                .map(this::extractJson)
-                .map(this::parseJson)
-                .doOnError(e -> log.error("Failed to process AI request: {}", e.getMessage()))
-                .onErrorResume(e -> {
-                    log.error("Returning empty result due to error", e);
-                    return Mono.just(new ArrayList<>());  // Return empty list on error
-                });
+        )
+        .bodyToMono(String.class)
+        .timeout(Duration.ofSeconds(240))
+        .retryWhen(
+            Retry.backoff(3, Duration.ofSeconds(2))
+                .filter(e -> !(e instanceof WebClientResponseException.BadRequest))
+        )
+        .map(this::extractContent)
+        .map(this::parseJson)
+        .doOnError(e -> log.error("AI processing failed", e))
+        .onErrorResume(e -> Mono.just(new ArrayList<>()));
     }
 
     private String buildPrompt(String paper, List<TopicDetails> topics) {
+
         try {
+
             String syllabusJson = objectMapper.writeValueAsString(topics);
 
-            return String.format("""
-                Analyze this exam paper against the syllabus and identify important topics.
-                
-                SYLLABUS (JSON):
-                %s
-                
-                EXAM PAPER TEXT:
-                %s
-                
-                INSTRUCTIONS:
-                1. Match questions in the paper to subtopics in the syllabus (use semantic matching)
-                2. Extract the marks mentioned for each question (e.g., "2M", "5 marks", "10M")
-                3. Sum up all marks for each topic to get Total_Marks
-                4. List only the matched subtopic names in Important_Subtopics array
-                
-                OUTPUT FORMAT (respond with ONLY this JSON, nothing else):
-                [
-                  {
-                    "Topic": "topic name from syllabus",
-                    "Total_Marks": 15,
-                    "Important_Subtopics": ["subtopic1", "subtopic2"]
-                  }
-                ]
-                
-                CRITICAL: Return ONLY the JSON array. No markdown, no code blocks, no explanations.
-                """, syllabusJson, paper);
+            return """
+You are an exam analysis AI.
+Return ONLY a JSON object with a "results" key containing an array.
 
+SYLLABUS:
+%s
+
+EXAM PAPER:
+%s
+
+Output format:
+{
+  "results": [
+    {
+      "Topic": "Main topic name",
+      "Total_Marks": number,
+      "Important_Subtopics": ["subtopic1", "subtopic2"]
+    }
+  ]
+}
+
+Rules:
+- Only JSON object with "results" key
+- No explanation
+- No markdown
+""".formatted(syllabusJson, paper);
         } catch (Exception e) {
-            log.error("Failed to build prompt", e);
-            throw new RuntimeException("Prompt creation failed: " + e.getMessage());
+
+            throw new RuntimeException("Prompt creation failed", e);
         }
     }
 
-    private String extractJson(String raw) {
-        try {
-            log.info("=== EXTRACTING JSON ===");
-            log.info("Raw response length: {} characters", raw.length());
+    private String extractContent(String rawResponse) {
 
-            Map<String, Object> root = objectMapper.readValue(raw, new TypeReference<>() {});
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) root.get("choices");
+        try {
+
+            log.info("Raw AI response: {}", rawResponse);
+
+            Map<String, Object> root =
+                    objectMapper.readValue(rawResponse, new TypeReference<>() {});
+
+            List<Map<String, Object>> choices =
+                    (List<Map<String, Object>>) root.get("choices");
 
             if (choices == null || choices.isEmpty()) {
-                throw new RuntimeException("No choices in AI response");
+                throw new RuntimeException("No choices in response");
             }
 
-            Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
-            String content = msg.get("content").toString().trim();
+            Map<String, Object> message =
+                    (Map<String, Object>) choices.get(0).get("message");
 
-            log.info("=== AI GENERATED CONTENT ===");
-            log.info("{}", content);
-            log.info("=== END CONTENT ===");
+            Object content = message.get("content");
 
-            // Remove markdown code blocks if present
-            content = content.replaceAll("```json\\s*", "").replaceAll("```\\s*", "");
-
-            int s = content.indexOf('[');
-            int e = content.lastIndexOf(']');
-
-            if (s == -1 || e == -1) {
-                log.error("No JSON array found in content: {}", content);
-                throw new RuntimeException("No JSON array found in AI response");
+            if (content instanceof String) {
+                return ((String) content).trim();
             }
 
-            String json = content.substring(s, e + 1);
-            json = autoFixJson(json);
+            if (content instanceof List<?>) {
 
-            log.info("=== EXTRACTED & FIXED JSON ===");
-            log.info("{}", json);
-            log.info("=== END JSON ===");
+                List<?> arr = (List<?>) content;
 
-            return json;
+                if (!arr.isEmpty()) {
+
+                    Map<?, ?> first = (Map<?, ?>) arr.get(0);
+
+                    Object text = first.get("text");
+
+                    if (text != null) {
+                        return text.toString().trim();
+                    }
+                }
+            }
+
+            throw new RuntimeException("Unsupported AI response format");
 
         } catch (Exception e) {
-            log.error("JSON extraction failed", e);
-            throw new RuntimeException("JSON extraction failed: " + e.getMessage());
+
+            log.error("Content extraction failed", e);
+
+            throw new RuntimeException(e);
         }
-    }
-
-    private String autoFixJson(String json) {
-        // Remove trailing commas before closing brackets/braces
-        json = json.replaceAll(",\\s*]", "]");
-        json = json.replaceAll(",\\s*}", "}");
-
-        // Ensure proper closing
-        if (!json.trim().endsWith("]")) {
-            json = json.trim() + "]";
-        }
-
-        // Balance braces
-        long openBraces = json.chars().filter(ch -> ch == '{').count();
-        long closeBraces = json.chars().filter(ch -> ch == '}').count();
-
-        while (closeBraces < openBraces) {
-            json = json + "}";
-            closeBraces++;
-        }
-
-        return json;
     }
 
     private List<ResponseModel> parseJson(String json) {
-        try {
-            List<ResponseModel> result = objectMapper.readValue(json, new TypeReference<>() {});
-            log.info("Successfully parsed {} response items", result.size());
-            return result;
-        } catch (Exception e) {
-            log.error("JSON parse error. JSON was: {}", json, e);
-            throw new RuntimeException("JSON parse error: " + e.getMessage());
+    try {
+        log.info("Parsing JSON: {}", json);
+
+        Map<String, Object> wrapper = objectMapper.readValue(json, new TypeReference<>() {});
+        Object results = wrapper.get("results");
+
+        if (results == null) {
+            log.error("No 'results' key found in AI response");
+            return new ArrayList<>();
         }
+
+        String resultsJson = objectMapper.writeValueAsString(results);
+        return objectMapper.readValue(resultsJson, new TypeReference<List<ResponseModel>>() {});
+
+    } catch (Exception e) {
+        log.error("JSON parsing failed: {}", e.getMessage());
+        throw new RuntimeException("Invalid JSON returned by AI");
     }
+}
 }

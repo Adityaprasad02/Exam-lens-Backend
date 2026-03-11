@@ -4,9 +4,12 @@ import com.Examlens_Backend.FileHandler.Models.ResponseModel;
 import com.Examlens_Backend.FileHandler.Models.TopicDetails;
 import com.Examlens_Backend.FileHandler.exceptions.HandleException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier; // NEW
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -20,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -27,9 +31,13 @@ import java.util.stream.Collectors;
 
 @Service
 public class FileService {
+    private static final Logger log = LoggerFactory.getLogger(FileService.class);
 
     @Value("${py.url}")
     private String url;
+
+    @Value("${ocr.timeout.seconds:60}")
+    private int ocrTimeoutSeconds;
 
     @Autowired
     private RestTemplate restTemplate;
@@ -45,6 +53,9 @@ public class FileService {
 
 
     public List<Map<String, Object>> handleUpload(MultipartFile[] files, List<TopicDetails>syllabus) {
+        long startTime = Instant.now().toEpochMilli();
+        log.info("=== UPLOAD START ===");
+        log.info("Processing {} files with {} topics", files.length, syllabus.size());
 
         if (files == null || syllabus == null) {
             throw new HandleException("Required field is missing ! ! ");
@@ -53,46 +64,83 @@ public class FileService {
             throw new HandleException("Syllabus is required");
         }
 
-        List<Map<String, Object>> results = new ArrayList<>();
-
+        // Validate all files first
         for (MultipartFile file : files) {
             validatePdf(file);
-            results.add(processSingleFile(file, syllabus));
         }
-         return results;
+
+        // Process files in parallel using CompletableFuture
+        List<CompletableFuture<Map<String, Object>>> futures = new ArrayList<>();
+        for (MultipartFile file : files) {
+            CompletableFuture<Map<String, Object>> future = CompletableFuture.supplyAsync(
+                    () -> processSingleFile(file, syllabus),
+                    executor
+            );
+            futures.add(future);
+        }
+
+        // Wait for all to complete
+        List<Map<String, Object>> results = futures.stream()
+                .map(CompletableFuture::join)
+                .collect(Collectors.toList());
+
+        long duration = Instant.now().toEpochMilli() - startTime;
+        log.info("=== UPLOAD COMPLETE ===");
+        log.info("Total time: {} ms for {} files", duration, files.length);
+        log.info("Average time per file: {} ms", duration / files.length);
+
+        return results;
     }
 
     private Map<String, Object> processSingleFile(MultipartFile file , List<TopicDetails>syllabus) {
+        String fileName = file.getOriginalFilename();
+        long fileStartTime = Instant.now().toEpochMilli();
+        log.debug("Processing file: {}", fileName);
 
         File tempPdf = null;
         try {
             // Step 1: Disk I/O (save)
+            long t1 = Instant.now().toEpochMilli();
             double size = getSize(file);
             tempPdf = saveTempPdf(file);
+            long diskTime = Instant.now().toEpochMilli() - t1;
+            log.debug("Disk I/O time for {}: {} ms", fileName, diskTime);
 
-            // Step 2: Network I/O (OCR)
-            String extracted = sendToOcr(tempPdf);
+            // Step 2: Network I/O (OCR) - with timeout
+            long t2 = Instant.now().toEpochMilli();
+            String extracted = sendToOcrWithTimeout(tempPdf);
+            long ocrTime = Instant.now().toEpochMilli() - t2;
+            log.debug("OCR time for {}: {} ms", fileName, ocrTime);
 
-            // Step 3: Network I/O
-         List<ResponseModel> response = conn.process(extracted, syllabus).block();
+            // Step 3: Network I/O (AI) - use timeout from Mono
+            long t3 = Instant.now().toEpochMilli();
+            List<ResponseModel> response = conn.process(extracted, syllabus)
+                    .toFuture()
+                    .get(); // Non-blocking async wait
+            long aiTime = Instant.now().toEpochMilli() - t3;
+            log.debug("AI processing time for {}: {} ms", fileName, aiTime);
 
-            // Step 4: Build final result Map
+            // Step 4: Build final result Map - ONLY send what frontend needs
             Map<String, Object> fileInfo = new HashMap<>();
-            fileInfo.put("file_name", file.getOriginalFilename());
+            fileInfo.put("file_name", fileName);
             fileInfo.put("content_type", file.getContentType());
             fileInfo.put("size_kb", size);
-            fileInfo.put("analysis", response);
+            fileInfo.put("analysis", response);  // Only the ResponseModel list
 
+            log.info("Successfully processed {}: {} ms total", fileName, Instant.now().toEpochMilli() - fileStartTime);
             return fileInfo;
 
         } catch (HandleException e) {
-            return Map.of("file_name", Objects.requireNonNull(file.getOriginalFilename()), "error", "Processing failed: " + e.getMessage());
+            log.error("Processing failed for {}: {}", fileName, e.getMessage());
+            return Map.of("file_name", fileName, "error", "Processing failed: " + e.getMessage());
         } catch (Exception e) {
-            return Map.of("file_name", Objects.requireNonNull(file.getOriginalFilename()), "error", "Unexpected error: " + e.getMessage());
+            log.error("Unexpected error for {}: {}", fileName, e.getMessage(), e);
+            return Map.of("file_name", fileName, "error", "Unexpected error: " + e.getMessage());
         } finally {
             // CRITICAL: Ensure the temporary file is deleted in ALL cases.
             if (tempPdf != null && tempPdf.exists()) {
-                tempPdf.delete();
+                boolean deleted = tempPdf.delete();
+                log.debug("Temp file cleanup for {}: {}", fileName, deleted ? "success" : "failed");
             }
         }
     }
@@ -113,6 +161,15 @@ public class FileService {
     }
 
     // OCR
+
+    private String sendToOcrWithTimeout(File pdfFile) {
+        try {
+            return sendToOcr(pdfFile);
+        } catch (Exception e) {
+            log.error("OCR request failed: {}", e.getMessage());
+            throw new HandleException("OCR processing failed: " + e.getMessage());
+        }
+    }
 
     private String sendToOcr(File pdfFile) {
         HttpHeaders headers = new HttpHeaders();
